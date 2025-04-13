@@ -1,22 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
+import IGameState from '../types/IGameState';
+import IGameBoard from '../types/IGameBoard';
+import { AgentRat, AgentCat } from '../agents';
 
-interface Point {
-  x: number;
-  y: number;
-  id: number;
-}
-
-interface GameState {
-  ratPosition: number;
-  catPosition: number;
-  currentTurn: 'rat' | 'cat';
-  gameOver: boolean;
-  gameOverMessage: string;
+interface IMove {
+  actor: string;
+  from: number;
+  to: number;
 }
 
 const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [gameState, setGameState] = useState<GameState>({
+  const [opponent, setOpponent] = useState<'AI' | 'HUMAN'>('AI');
+  const [moveHistory, setMoveHistory] = useState<IMove[]>([]);
+  const [gameState, setGameState] = useState<IGameState>({
     ratPosition: 0,
     catPosition: 2,
     currentTurn: 'rat',
@@ -29,9 +26,11 @@ const Game: React.FC = () => {
   const centerX = 200;
   const centerY = 250;
   
+  const gameboard : IGameBoard = { checkpoints: [], validMoves: {} };
+
   // Checkpoint Graph
   // Define the positions of the checkpoints in a circle
-  const checkpoints: Point[] = [
+  gameboard.checkpoints = [
     { // Top
       x: centerX,
       y: centerY - radius,
@@ -66,7 +65,7 @@ const Game: React.FC = () => {
 
   // Define valid moves for each checkpoint
   // Only checkpoints 0, 2, and 4 are connected to the center (5)
-  const validMoves: Record<number, number[]> = {
+  gameboard.validMoves = {
     0: [1, 4, 5],    // Top can move to top-right, top-left, and center
     1: [0, 2],       // Top-right can move to top and bottom-right
     2: [1, 3, 5],    // Bottom-right can move to top-right, bottom-left, and center
@@ -75,18 +74,21 @@ const Game: React.FC = () => {
     5: [0, 2, 4]     // Center can move to top, bottom-right, and top-left
   };
 
+  const ratAgent = new AgentRat(gameboard);
+  const catAgent = new AgentCat(gameboard);
+
   const isValidMove = (from: number, to: number) => {
-    return validMoves[from].includes(to);
+    return gameboard.validMoves[from].includes(to);
   };
 
   const canCatCatchRat = (ratPos: number, catPos: number): boolean => {
     // Check if cat can catch rat in one move
-    return validMoves[catPos].includes(ratPos);
+    return gameboard.validMoves[catPos].includes(ratPos);
   };
 
   const isRatCaptured = (ratPos: number, catPos: number): boolean => {
     // Check if rat can escape from cat's position
-    return validMoves[ratPos].every(possibleRatMove =>
+    return gameboard.validMoves[ratPos].every(possibleRatMove =>
       // validMoves[catPos].includes(possibleRatMove)
       canCatCatchRat(possibleRatMove, catPos)
     );
@@ -105,16 +107,16 @@ const Game: React.FC = () => {
 
     // Draw lines to center (only from checkpoints 0, 2, and 4)
     ctx.beginPath();
-    ctx.moveTo(checkpoints[0].x, checkpoints[0].y);
-    ctx.lineTo(checkpoints[5].x, checkpoints[5].y);
-    ctx.moveTo(checkpoints[2].x, checkpoints[2].y);
-    ctx.lineTo(checkpoints[5].x, checkpoints[5].y);
-    ctx.moveTo(checkpoints[4].x, checkpoints[4].y);
-    ctx.lineTo(checkpoints[5].x, checkpoints[5].y);
+    ctx.moveTo(gameboard.checkpoints[0].x, gameboard.checkpoints[0].y);
+    ctx.lineTo(gameboard.checkpoints[5].x, gameboard.checkpoints[5].y);
+    ctx.moveTo(gameboard.checkpoints[2].x, gameboard.checkpoints[2].y);
+    ctx.lineTo(gameboard.checkpoints[5].x, gameboard.checkpoints[5].y);
+    ctx.moveTo(gameboard.checkpoints[4].x, gameboard.checkpoints[4].y);
+    ctx.lineTo(gameboard.checkpoints[5].x, gameboard.checkpoints[5].y);
     ctx.stroke();
 
     // Draw checkpoints
-    checkpoints.forEach((point, index) => {
+    gameboard.checkpoints.forEach((point, index) => {
       
       if (
         (gameState.currentTurn === "cat" && gameState.catPosition === point.id) ||
@@ -161,6 +163,9 @@ const Game: React.FC = () => {
       return;
     }
 
+    var move = { actor: gameState.currentTurn === "cat" ? "Cat" : "Rat" , from: currentPosition, to: newPosition };
+    setMoveHistory(prev => [...prev, move]);
+
     setGameState(prev => ({
       ...prev,
       catPosition: prev.currentTurn === 'cat' ? newPosition : prev.catPosition,
@@ -192,8 +197,8 @@ const Game: React.FC = () => {
     drawBoard(ctx);
 
     // Draw rat and cat
-    const ratPoint = checkpoints[gameState.ratPosition];
-    const catPoint = checkpoints[gameState.catPosition];
+    const ratPoint = gameboard.checkpoints[gameState.ratPosition];
+    const catPoint = gameboard.checkpoints[gameState.catPosition];
 
     // Add icons for rat and cat using Lucide React components as reference
     ctx.fillStyle = '#4f46e5';
@@ -204,7 +209,29 @@ const Game: React.FC = () => {
     
     ctx.fillStyle = '#ef4444';
     ctx.fillText('🐱', catPoint.x, catPoint.y);
+
+    if (opponent === 'AI' && gameState.currentTurn === 'rat') {
+      // AI logic for rat's move
+      setTimeout(() => {
+        var nextMove = ratAgent.move(gameState.ratPosition, gameState.catPosition);
+        if (nextMove !== null) handleCheckpointClick(nextMove);
+      }, 1500);
+    } else if (opponent === 'AI' && gameState.currentTurn === 'cat') {
+      // AI logic for cat's move
+      setTimeout(() => {
+        var nextMove = catAgent.move(gameState.catPosition, gameState.ratPosition);
+        if (nextMove !== null) handleCheckpointClick(nextMove);
+      }, 1500);
+    }
+
   }, [gameState]);
+
+  useEffect(() => {
+    const latestMove = moveHistory[moveHistory.length - 1];
+    if (latestMove) {
+      console.log(latestMove)
+    }
+  }, [moveHistory])
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -221,7 +248,7 @@ const Game: React.FC = () => {
             const y = e.clientY - rect.top;
 
             // Check if click is near any checkpoint
-            checkpoints.forEach(point => {
+            gameboard.checkpoints.forEach(point => {
               const distance = Math.sqrt(
                 Math.pow(x - point.x, 2) + Math.pow(y - point.y, 2)
               );
