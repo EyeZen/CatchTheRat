@@ -3,28 +3,26 @@ import IGameState from '../types/IGameState';
 import IGameBoard from '../types/IGameBoard';
 import { AgentRat, AgentCat } from '../agents';
 import { useSettings } from './SettingsPanel';
-
-interface IMove {
-  actor: string;
-  from: number;
-  to: number;
-}
+import { useMoveHistory } from '../context/MoveHistoryContext';
+import Actors from '../types/Actors';
 
 const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [moveHistory, setMoveHistory] = useState<IMove[]>([]);
-  const [gameState, setGameState] = useState<IGameState>({
+    const [gameState, setGameState] = useState<IGameState>({
     ratPosition: 0,
     catPosition: 2,
-    currentTurn: 'rat',
+    currentTurn: Actors.RAT,
     gameOver: false,
     gameOverMessage: ''
   });
+  const [paused, setPaused] = useState(false);
+  const { moveHistory, addMove, clearHistory } = useMoveHistory();
 
   const { dispatchCatAgent, dispatchRatAgent, movementSpeed } = useSettings();
   const MAX_SPEED_FACTOR = 5;
   const MAX_SPEED = 1000;
   const getSpeed = (movementFactor: number) => MAX_SPEED * ((MAX_SPEED_FACTOR - movementFactor) / MAX_SPEED_FACTOR);
+  const MOVES_REPETITION_LIMIT = 3;
 
   // Define checkpoint positions in a circle
   const radius = 150;
@@ -88,15 +86,36 @@ const Game: React.FC = () => {
 
   const canCatCatchRat = (ratPos: number, catPos: number): boolean => {
     // Check if cat can catch rat in one move
-    return gameboard.validMoves[catPos].includes(ratPos);
+    return ratPos === catPos || gameboard.validMoves[catPos].includes(ratPos);
   };
 
   const isRatCaptured = (ratPos: number, catPos: number): boolean => {
     // Check if rat can escape from cat's position
-    return gameboard.validMoves[ratPos].every(possibleRatMove =>
-      // validMoves[catPos].includes(possibleRatMove)
-      canCatCatchRat(possibleRatMove, catPos)
-    );
+    return gameboard.validMoves[ratPos].every(possibleRatMove => canCatCatchRat(possibleRatMove, catPos));
+  };
+
+  const checkRepetitiveMoves = () => {
+    var latestMovesOffset = -1 * 2 * MOVES_REPETITION_LIMIT;
+    var ratMoves = moveHistory.filter(move => move.actor === Actors.RAT)
+                            .slice(latestMovesOffset)
+                            .map(move => `${move.from}${move.to}`);
+    var catMoves = moveHistory.filter(move => move.actor === Actors.CAT)
+                            .slice(latestMovesOffset)
+                            .map(move => `${move.from}${move.to}`);
+
+    if (ratMoves.length < MOVES_REPETITION_LIMIT || catMoves.length < MOVES_REPETITION_LIMIT) return false;
+
+    var ratMoveCycles: string[] = [];
+    var catMoveCycles: string[] = [];
+    for (let i = 0; i < MOVES_REPETITION_LIMIT; i += 2) {
+      ratMoveCycles.push(`${ratMoves[i]}-${ratMoves[i + 1]}`);
+      catMoveCycles.push(`${catMoves[i]}-${catMoves[i + 1]}`);
+    }
+
+    var isRatMovesRepetitive = ratMoveCycles.every((cycle, index) => index === 0 || cycle === ratMoveCycles[index - 1]);
+    var isCatMovesRepetitive = catMoveCycles.every((cycle, index) => index === 0 || cycle === catMoveCycles[index - 1]);
+
+    return isRatMovesRepetitive && isCatMovesRepetitive
   };
 
   // Draw the game board
@@ -123,13 +142,20 @@ const Game: React.FC = () => {
     // Draw checkpoints
     gameboard.checkpoints.forEach((point, index) => {
       
-      if (
-        (gameState.currentTurn === "cat" && gameState.catPosition === point.id) ||
-        (gameState.currentTurn === "rat" && gameState.ratPosition === point.id)
-      ) {
+      var isCheckpointActive: boolean = (gameState.currentTurn === Actors.CAT && gameState.catPosition === point.id) || (gameState.currentTurn === Actors.RAT && gameState.ratPosition === point.id);
+      if (isCheckpointActive) {
         ctx.fillStyle = '#19bd60';
       } else {
         ctx.fillStyle = '#e5e7eb';
+      }
+
+      var isAgentDispatched: boolean = (dispatchCatAgent && gameState.catPosition === point.id) || (dispatchRatAgent && gameState.ratPosition === point.id);
+      if (isAgentDispatched) {
+        ctx.strokeStyle = '#ff6600';
+        ctx.lineWidth = 4;
+      } else {
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
       }
 
       ctx.beginPath();
@@ -147,46 +173,63 @@ const Game: React.FC = () => {
   };
 
   const handleCheckpointClick = (checkpointId: number) => {
-    if (gameState.gameOver) return;
+    if (gameState.gameOver || paused) return;
 
-    const currentPosition = gameState.currentTurn === 'rat' 
-      ? gameState.ratPosition 
-      : gameState.catPosition;
-
-    if (!isValidMove(currentPosition, checkpointId)) return;
-    var newPosition = checkpointId;
-
-    if (gameState.currentTurn === 'rat' && canCatCatchRat(newPosition, gameState.catPosition)) {
-        return;
-    } else if (isRatCaptured(gameState.ratPosition, newPosition)) {
-      setGameState(prev => ({
+    // Check if the game should end due to repetitive moves
+    if (checkRepetitiveMoves()) {
+      setGameState((prev) => ({
         ...prev,
-        catPosition: newPosition,
         gameOver: true,
-        gameOverMessage: "Game Over - Cat wins! Cat can catch the rat in the next move!"
+        gameOverMessage: 'Game ended due to repetitive moves!'
       }));
-      return;
     }
 
-    var move = { actor: gameState.currentTurn === "cat" ? "Cat" : "Rat" , from: currentPosition, to: newPosition };
-    setMoveHistory(prev => [...prev, move]);
+    const currentPosition = gameState.currentTurn === Actors.RAT
+      ? gameState.ratPosition 
+      : gameState.catPosition;
+    
+    const move = {
+      actor: gameState.currentTurn,
+      from: currentPosition,
+      to: checkpointId,
+    };
 
-    setGameState(prev => ({
+    if (!isValidMove(currentPosition, checkpointId)) return;
+    if (gameState.currentTurn === Actors.RAT && canCatCatchRat(checkpointId, gameState.catPosition)) return;
+    if (gameState.currentTurn === Actors.CAT && isRatCaptured(gameState.ratPosition, checkpointId)) {
+      setGameState((prev) => ({
+        ...prev,
+        catPosition: checkpointId,
+        currentTurn: Actors.NONE,
+        gameOver: true,
+        gameOverMessage: 'Cat caught the Rat! Game Over.'
+      }));
+      addMove(move); // Add move to global history
+      return;
+    }
+    addMove(move);     // Add move to global history
+
+    setGameState((prev) => ({
       ...prev,
-      catPosition: prev.currentTurn === 'cat' ? newPosition : prev.catPosition,
-      ratPosition: prev.currentTurn === 'rat' ? newPosition : prev.ratPosition,
-      currentTurn: prev.currentTurn === 'rat' ? 'cat' : 'rat'
+      catPosition: prev.currentTurn === Actors.CAT ? checkpointId : prev.catPosition,
+      ratPosition: prev.currentTurn === Actors.RAT ? checkpointId : prev.ratPosition,
+      currentTurn: prev.currentTurn === Actors.RAT ? Actors.CAT : Actors.RAT,
     }));
   };
 
   const resetGame = () => {
+    clearHistory();
     setGameState({
       ratPosition: 0,
       catPosition: 2,
-      currentTurn: 'rat',
+      currentTurn: Actors.RAT,
       gameOver: false,
       gameOverMessage: ''
     });
+  };
+
+  const togglePause = () => {
+    setPaused((prev) => !prev);
   };
 
   // Draw the game board and characters on canvas
@@ -201,11 +244,12 @@ const Game: React.FC = () => {
 
     drawBoard(ctx);
 
+    // if (gameState.gameOver) return; // Skip game logic if game is over
+
     // Draw rat and cat
     const ratPoint = gameboard.checkpoints[gameState.ratPosition];
     const catPoint = gameboard.checkpoints[gameState.catPosition];
 
-    // Add icons for rat and cat using Lucide React components as reference
     ctx.fillStyle = '#4f46e5';
     ctx.font = '24px Arial';
     ctx.textAlign = 'center';
@@ -215,28 +259,40 @@ const Game: React.FC = () => {
     ctx.fillStyle = '#ef4444';
     ctx.fillText('🐱', catPoint.x, catPoint.y);
 
-    if (dispatchRatAgent && gameState.currentTurn === 'rat') {
-      // AI logic for rat's move
-      setTimeout(() => {
-        var nextMove = ratAgent.move(gameState.ratPosition, gameState.catPosition);
-        if (nextMove !== null) handleCheckpointClick(nextMove);
-      }, getSpeed(movementSpeed));
-    } else if (dispatchCatAgent && gameState.currentTurn === 'cat') {
-      // AI logic for cat's move
-      setTimeout(() => {
-        var nextMove = catAgent.move(gameState.catPosition, gameState.ratPosition);
-        if (nextMove !== null) handleCheckpointClick(nextMove);
-      }, getSpeed(movementSpeed));
+    if (paused || gameState.gameOver) {
+      var overlayText = paused 
+                          ? 'Paused' 
+                          : gameState.gameOver
+                            ? 'Game Over' 
+                            : 'On Hold';
+      // Draw the paused overlay
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Semi-transparent black
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = paused ? '#ffffff' : '#ff0000'; // White text
+      ctx.font = '36px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(overlayText, canvas.width / 2, canvas.height / 2);
+      return; // Skip further drawing when paused
     }
 
-  }, [gameState, dispatchCatAgent, dispatchRatAgent]);
-
-  useEffect(() => {
-    const latestMove = moveHistory[moveHistory.length - 1];
-    if (latestMove) {
-      console.log(latestMove)
+    if (dispatchRatAgent && gameState.currentTurn === Actors.RAT) {
+      setTimeout(() => {
+        if (!paused) {
+          const nextMove = ratAgent.move(gameState.ratPosition, gameState.catPosition);
+          if (nextMove !== null) handleCheckpointClick(nextMove);
+        }
+      }, getSpeed(movementSpeed));
+    } else if (dispatchCatAgent && gameState.currentTurn === Actors.CAT) {
+      setTimeout(() => {
+        if (!paused) {
+          const nextMove = catAgent.move(gameState.catPosition, gameState.ratPosition);
+          if (nextMove !== null) handleCheckpointClick(nextMove);
+        }
+      }, getSpeed(movementSpeed));
     }
-  }, [moveHistory])
+  }, [gameState, dispatchCatAgent, dispatchRatAgent, paused]); // Add paused to dependencies
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -246,13 +302,14 @@ const Game: React.FC = () => {
           width={400}
           height={500}
           onClick={(e) => {
+            if (paused) return;
+
             const rect = canvasRef.current?.getBoundingClientRect();
             if (!rect) return;
 
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
 
-            // Check if click is near any checkpoint
             gameboard.checkpoints.forEach(point => {
               const distance = Math.sqrt(
                 Math.pow(x - point.x, 2) + Math.pow(y - point.y, 2)
@@ -270,13 +327,19 @@ const Game: React.FC = () => {
         <p className={"text-lg font-semibold mb-2"}>
           {gameState.gameOver 
             ? gameState.gameOverMessage
-            : `Current turn: ${gameState.currentTurn === 'rat' ? 'Rat' : 'Cat'}`}
+            : `Current turn: ${gameState.currentTurn === Actors.RAT ? 'Rat' : 'Cat'}`}
         </p>
         <button
           onClick={resetGame}
           className="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700 transition-colors"
         >
           Reset Game
+        </button>
+        <button
+          onClick={togglePause}
+          className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition-colors ml-2"
+        >
+          {paused ? 'Continue' : 'Pause'}
         </button>
       </div>
     </div>

@@ -1,7 +1,9 @@
+import { Actor } from "./Actors";
+
 interface IGameState {
   ratPosition: number;
   catPosition: number;
-  currentTurn: 'rat' | 'cat';
+  currentTurn: Actor;
   gameOver: boolean;
   gameOverMessage: string;
 }

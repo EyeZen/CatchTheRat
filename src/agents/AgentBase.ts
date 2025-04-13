@@ -11,7 +11,7 @@ class AgentBase implements IAiAgent {
 
     protected gameboard: IGameBoard;
     protected calculateMove: Function | null = null; // Function to calculate the next move
-    protected lastPosition: number | null = null; // Last position of the agent
+    protected lastThreeMoves: number[] = []; // Last position of the agent
 
     //#endregion
 
@@ -68,20 +68,41 @@ class AgentBase implements IAiAgent {
      * @returns The new position of the rat or null if no valid moves are available.
      */
     move(currentPosition: number, opponentPosition: number): number | null {
+        var lastPosition = this.lastThreeMoves[this.lastThreeMoves.length - 1] || null; // Get the last position of the agent
+        if (currentPosition == lastPosition) return currentPosition; // No move if the position is the same as the last one
 
-        if (currentPosition == this.lastPosition) return currentPosition; // No move if the position is the same as the last one
-
-        var lastPosition = this.lastPosition;
-        this.lastPosition = currentPosition; // Update the last position
-
-        // Check if a custom move function is provided
-        // If so, use it to calculate the next move
-        if (this.calculateMove) {
-            return this.calculateMove(currentPosition, opponentPosition, lastPosition);
+        this.lastThreeMoves.push(currentPosition); // Update the last position
+        if (this.lastThreeMoves.length > 3) {
+            this.lastThreeMoves.shift(); // Keep only the last three moves
         }
 
-        // Default behavior
-        return this.processMove(currentPosition, opponentPosition, lastPosition);
+        
+        // Check if a custom move function is provided
+        // If so, use it to calculate the next move
+        var nextMoveGenerator = this.calculateMove ?? this.processMove;
+        nextMoveGenerator = nextMoveGenerator.bind(this);
+
+        var isMoveRepetitive: boolean = true;
+        var nextMove: number | null = null;
+
+        const MAX_MOVE_CALC_TRIES = 2;
+        for (let i = 0; i < MAX_MOVE_CALC_TRIES && isMoveRepetitive; i++) {
+            nextMove =  nextMoveGenerator(currentPosition, opponentPosition, lastPosition);
+
+            if (nextMove === null) break;
+            
+            // check if generated next-move will make a sequence of three repetitive moves
+            if (this.lastThreeMoves.length < 3) {
+                isMoveRepetitive = false;
+                break;
+            }
+            
+            var expectedLastThreeMoves = this.lastThreeMoves.slice(-2);
+            expectedLastThreeMoves.push(nextMove);
+            isMoveRepetitive = expectedLastThreeMoves.every((move, index) => index === 0 || move === expectedLastThreeMoves[index - 1]);
+        }
+
+        return nextMove;
     }
 
     /**

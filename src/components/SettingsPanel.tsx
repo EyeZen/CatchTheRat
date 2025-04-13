@@ -55,7 +55,7 @@ const SettingsPanel: React.FC = () => {
       <h2 className="text-lg font-semibold mb-4">Settings</h2>
       <div className="flex items-center justify-between mb-4">
         <label htmlFor="dispatchCatAgent" className="text-gray-700">
-          Dispatch Cat-Agent
+          Dispatch agent Cat
         </label>
         <div
           className={`relative w-12 h-6 rounded-full cursor-pointer transition-colors ${
@@ -72,7 +72,7 @@ const SettingsPanel: React.FC = () => {
       </div>
       <div className="flex items-center justify-between mb-4">
         <label htmlFor="dispatchRatAgent" className="text-gray-700">
-          Dispatch Rat-Agent
+          Dispatch agent Rat
         </label>
         <div
           className={`relative w-12 h-6 rounded-full cursor-pointer transition-colors ${

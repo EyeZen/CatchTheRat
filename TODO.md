@@ -1,0 +1,15 @@
+# TODO
+- Ability to export moves history
+- Ability to replay moves history 
+- Ability to import moves history
+- Responsive layout
+- Ability to export layout
+- Ability to create custom layouts
+- Ability to import layouts
+- Multiplayer 
+- Maps ranking (difficulty, most-played)
+- AI based Agent
+- Agent difficulty levels (maybe tweaking agility and smartness)
+- Ability to submit a bug (maybe write to firebase or github issues file)
+- Smooth animated actor movement instead of instant position changes
+- Different Game-Over criteria in case of CAT as agent and RAT as player

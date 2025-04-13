@@ -1,4 +1,4 @@
-import { IGameBoard } from './IGameBoard';
+import IGameBoard from './IGameBoard';
 
 interface IAiAgent {
     move(currentPosition: number, opponentPosition: number): number | null;
