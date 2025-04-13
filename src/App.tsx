@@ -1,11 +1,17 @@
 import React from 'react';
 import Game from './components/Game';
+import SettingsPanel, { SettingsProvider } from './components/SettingsPanel';
 
 function App() {
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Rat and Cat Game</h1>
-      <Game />
+      <SettingsProvider>
+        <div className="flex gap-6">
+          <SettingsPanel />
+          <Game />
+        </div>
+      </SettingsProvider>
       <div className="mt-8 text-gray-600 max-w-md text-center">
         <h2 className="font-semibold mb-2">How to Play:</h2>
         <p>

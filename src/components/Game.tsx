@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import IGameState from '../types/IGameState';
 import IGameBoard from '../types/IGameBoard';
 import { AgentRat, AgentCat } from '../agents';
+import { useSettings } from './SettingsPanel';
 
 interface IMove {
   actor: string;
@@ -11,7 +12,6 @@ interface IMove {
 
 const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [opponent, setOpponent] = useState<'AI' | 'HUMAN'>('AI');
   const [moveHistory, setMoveHistory] = useState<IMove[]>([]);
   const [gameState, setGameState] = useState<IGameState>({
     ratPosition: 0,
@@ -20,6 +20,11 @@ const Game: React.FC = () => {
     gameOver: false,
     gameOverMessage: ''
   });
+
+  const { dispatchCatAgent, dispatchRatAgent, movementSpeed } = useSettings();
+  const MAX_SPEED_FACTOR = 5;
+  const MAX_SPEED = 1000;
+  const getSpeed = (movementFactor: number) => MAX_SPEED * ((MAX_SPEED_FACTOR - movementFactor) / MAX_SPEED_FACTOR);
 
   // Define checkpoint positions in a circle
   const radius = 150;
@@ -210,21 +215,21 @@ const Game: React.FC = () => {
     ctx.fillStyle = '#ef4444';
     ctx.fillText('🐱', catPoint.x, catPoint.y);
 
-    if (opponent === 'AI' && gameState.currentTurn === 'rat') {
+    if (dispatchRatAgent && gameState.currentTurn === 'rat') {
       // AI logic for rat's move
       setTimeout(() => {
         var nextMove = ratAgent.move(gameState.ratPosition, gameState.catPosition);
         if (nextMove !== null) handleCheckpointClick(nextMove);
-      }, 1500);
-    } else if (opponent === 'AI' && gameState.currentTurn === 'cat') {
+      }, getSpeed(movementSpeed));
+    } else if (dispatchCatAgent && gameState.currentTurn === 'cat') {
       // AI logic for cat's move
       setTimeout(() => {
         var nextMove = catAgent.move(gameState.catPosition, gameState.ratPosition);
         if (nextMove !== null) handleCheckpointClick(nextMove);
-      }, 1500);
+      }, getSpeed(movementSpeed));
     }
 
-  }, [gameState]);
+  }, [gameState, dispatchCatAgent, dispatchRatAgent]);
 
   useEffect(() => {
     const latestMove = moveHistory[moveHistory.length - 1];
