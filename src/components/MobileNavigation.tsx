@@ -3,9 +3,10 @@ import SettingsPanel from './SettingsPanel';
 
 interface MobileNavigationProps {
   setPaused: (paused: boolean) => void;
+  setShowHowToPlay: (show: boolean) => void; // Add prop to control the popup
 }
 
-const MobileNavigation: React.FC<MobileNavigationProps> = ({ setPaused }) => {
+const MobileNavigation: React.FC<MobileNavigationProps> = ({ setPaused, setShowHowToPlay }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const openMenu = () => {
@@ -63,7 +64,16 @@ const MobileNavigation: React.FC<MobileNavigationProps> = ({ setPaused }) => {
         </button>
         <h2 className="text-lg font-semibold mb-4 p-4">Menu</h2>
         <div className="p-4">
-          <SettingsPanel />
+          <button
+            onClick={() => {
+              setShowHowToPlay(true); // Show the "How to Play" popup
+              closeMenu(); // Close the menu
+            }}
+            className="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-md w-full mb-4"
+          >
+            How to Play
+          </button>
+          <SettingsPanel setShowHowToPlay={setShowHowToPlay} />
         </div>
       </div>
     </div>

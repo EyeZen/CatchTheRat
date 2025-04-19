@@ -109,7 +109,6 @@ const Game: React.FC<GameProps> = ({ paused, setPaused }) => {
     var movePair3 = recentMoves.slice(8, 12).map(move => `${move.from}-${move.to}`).join('|');
 
     if (movePair1 == movePair2 && movePair2 == movePair3) {
-      console.log(movePair1, movePair2, movePair3);
       return true;
     }
     return false;

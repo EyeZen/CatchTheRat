@@ -1,7 +1,11 @@
 import React from 'react';
 import { useSettings } from '../context/SettingsProvider';
 
-const SettingsPanel: React.FC = () => {
+interface SettingsPanelProps {
+  setShowHowToPlay: (show: boolean) => void; // Add prop to control the popup
+}
+
+const SettingsPanel: React.FC<SettingsPanelProps> = ({ setShowHowToPlay }) => {
   const { dispatchCatAgent, dispatchRatAgent, movementSpeed, toggleSetting, setMovementSpeed } = useSettings();
 
   return (
@@ -60,6 +64,14 @@ const SettingsPanel: React.FC = () => {
           </div>
         </div>
       )}
+      <div className="mt-4">
+        <button
+          onClick={() => setShowHowToPlay(true)} // Show the popup when clicked
+          className="bg-blue-500 text-white px-4 py-2 rounded-lg shadow-md w-full"
+        >
+          How to Play
+        </button>
+      </div>
     </div>
   );
 };
