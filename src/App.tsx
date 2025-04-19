@@ -1,18 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Game from './components/Game';
-import SettingsPanel, { SettingsProvider } from './components/SettingsPanel';
+import SettingsPanel from './components/SettingsPanel';
+import { SettingsProvider } from './context/SettingsProvider';
 import MoveHistory from './components/MoveHistory';
+import MobileNavigation from './components/MobileNavigation';
 import { MoveHistoryProvider } from './context/MoveHistoryContext';
 
 function App() {
+  const [paused, setPaused] = useState(false);
+
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4 w-full overflow-x-hidden">
       <h1 className="text-3xl font-bold text-gray-800 mb-8">Cat vs Rat</h1>
       <SettingsProvider>
         <MoveHistoryProvider>
+          <MobileNavigation setPaused={setPaused} />
           <div className="flex gap-6">
-            <SettingsPanel />
-            <Game />
+            <div className="hidden sm:block">
+              <SettingsPanel />
+            </div>
+            <Game paused={paused} setPaused={setPaused} />
             <MoveHistory />
           </div>
         </MoveHistoryProvider>

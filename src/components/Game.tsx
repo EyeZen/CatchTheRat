@@ -2,20 +2,24 @@ import React, { useEffect, useRef, useState } from 'react';
 import IGameState from '../types/IGameState';
 import IGameBoard from '../types/IGameBoard';
 import { AgentRat, AgentCat } from '../agents';
-import { useSettings } from './SettingsPanel';
+import { useSettings } from '../context/SettingsProvider';
 import { useMoveHistory } from '../context/MoveHistoryContext';
 import Actors from '../types/Actors';
 
-const Game: React.FC = () => {
+interface GameProps {
+  paused: boolean;
+  setPaused: (paused: boolean) => void;
+}
+
+const Game: React.FC<GameProps> = ({ paused, setPaused }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-    const [gameState, setGameState] = useState<IGameState>({
+  const [gameState, setGameState] = useState<IGameState>({
     ratPosition: 0,
     catPosition: 2,
     currentTurn: Actors.RAT,
     gameOver: false,
     gameOverMessage: ''
   });
-  const [paused, setPaused] = useState(false);
   const { moveHistory, addMove, clearHistory } = useMoveHistory();
 
   const { dispatchCatAgent, dispatchRatAgent, movementSpeed } = useSettings();
@@ -95,27 +99,20 @@ const Game: React.FC = () => {
   };
 
   const checkRepetitiveMoves = () => {
-    var latestMovesOffset = -1 * 2 * MOVES_REPETITION_LIMIT;
-    var ratMoves = moveHistory.filter(move => move.actor === Actors.RAT)
-                            .slice(latestMovesOffset)
-                            .map(move => `${move.from}${move.to}`);
-    var catMoves = moveHistory.filter(move => move.actor === Actors.CAT)
-                            .slice(latestMovesOffset)
-                            .map(move => `${move.from}${move.to}`);
+    var repetitionMovesLength = 4 * MOVES_REPETITION_LIMIT;
+    var recentMoves = moveHistory.slice(-repetitionMovesLength);
+    console.dir(recentMoves);
+    if (recentMoves.length < repetitionMovesLength) return false;
 
-    if (ratMoves.length < MOVES_REPETITION_LIMIT || catMoves.length < MOVES_REPETITION_LIMIT) return false;
+    var movePair1 = recentMoves.slice(0, 4).map(move => `${move.from}-${move.to}`).join('|');
+    var movePair2 = recentMoves.slice(4, 8).map(move => `${move.from}-${move.to}`).join('|');
+    var movePair3 = recentMoves.slice(8, 12).map(move => `${move.from}-${move.to}`).join('|');
 
-    var ratMoveCycles: string[] = [];
-    var catMoveCycles: string[] = [];
-    for (let i = 0; i < MOVES_REPETITION_LIMIT; i += 2) {
-      ratMoveCycles.push(`${ratMoves[i]}-${ratMoves[i + 1]}`);
-      catMoveCycles.push(`${catMoves[i]}-${catMoves[i + 1]}`);
+    if (movePair1 == movePair2 && movePair2 == movePair3) {
+      console.log(movePair1, movePair2, movePair3);
+      return true;
     }
-
-    var isRatMovesRepetitive = ratMoveCycles.every((cycle, index) => index === 0 || cycle === ratMoveCycles[index - 1]);
-    var isCatMovesRepetitive = catMoveCycles.every((cycle, index) => index === 0 || cycle === catMoveCycles[index - 1]);
-
-    return isRatMovesRepetitive && isCatMovesRepetitive
+    return false;
   };
 
   // Draw the game board
@@ -175,15 +172,6 @@ const Game: React.FC = () => {
   const handleCheckpointClick = (checkpointId: number) => {
     if (gameState.gameOver || paused) return;
 
-    // Check if the game should end due to repetitive moves
-    if (checkRepetitiveMoves()) {
-      setGameState((prev) => ({
-        ...prev,
-        gameOver: true,
-        gameOverMessage: 'Game ended due to repetitive moves!'
-      }));
-    }
-
     const currentPosition = gameState.currentTurn === Actors.RAT
       ? gameState.ratPosition 
       : gameState.catPosition;
@@ -209,6 +197,16 @@ const Game: React.FC = () => {
     }
     addMove(move);     // Add move to global history
 
+    // Check if the game should end due to repetitive moves
+    if (checkRepetitiveMoves()) {
+      setGameState((prev) => ({
+        ...prev,
+        gameOver: true,
+        gameOverMessage: 'Game ended due to repetitive moves!'
+      }));
+      return;
+    }
+
     setGameState((prev) => ({
       ...prev,
       catPosition: prev.currentTurn === Actors.CAT ? checkpointId : prev.catPosition,
@@ -228,10 +226,6 @@ const Game: React.FC = () => {
     });
   };
 
-  const togglePause = () => {
-    setPaused((prev) => !prev);
-  };
-
   // Draw the game board and characters on canvas
   // This effect runs every time the game state changes
   // and updates the canvas accordingly
@@ -244,7 +238,18 @@ const Game: React.FC = () => {
 
     drawBoard(ctx);
 
-    // if (gameState.gameOver) return; // Skip game logic if game is over
+    if (paused || gameState.gameOver) {
+      // Draw the paused overlay
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Semi-transparent black
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      ctx.fillStyle = paused ? '#ffffff' : '#ff0000'; // White text
+      ctx.font = '36px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(paused ? 'Paused' : 'Game Over', canvas.width / 2, canvas.height / 2);
+      return; // Skip further drawing when paused
+    }
 
     // Draw rat and cat
     const ratPoint = gameboard.checkpoints[gameState.ratPosition];
@@ -258,24 +263,6 @@ const Game: React.FC = () => {
     
     ctx.fillStyle = '#ef4444';
     ctx.fillText('🐱', catPoint.x, catPoint.y);
-
-    if (paused || gameState.gameOver) {
-      var overlayText = paused 
-                          ? 'Paused' 
-                          : gameState.gameOver
-                            ? 'Game Over' 
-                            : 'On Hold';
-      // Draw the paused overlay
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Semi-transparent black
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = paused ? '#ffffff' : '#ff0000'; // White text
-      ctx.font = '36px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(overlayText, canvas.width / 2, canvas.height / 2);
-      return; // Skip further drawing when paused
-    }
 
     if (dispatchRatAgent && gameState.currentTurn === Actors.RAT) {
       setTimeout(() => {
@@ -336,7 +323,7 @@ const Game: React.FC = () => {
           Reset Game
         </button>
         <button
-          onClick={togglePause}
+          onClick={() => setPaused(!paused)}
           className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition-colors ml-2"
         >
           {paused ? 'Continue' : 'Pause'}

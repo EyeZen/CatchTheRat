@@ -1,61 +1,15 @@
-import React, { createContext, useContext, useState } from 'react';
-
-// Define the context for settings
-interface ISettingsContext {
-  dispatchCatAgent: boolean;
-  dispatchRatAgent: boolean;
-  movementSpeed: number;
-  toggleSetting: (setting: keyof Omit<ISettingsContext, 'movementSpeed'>) => void;
-  setMovementSpeed: (speed: number) => void;
-}
-
-const SettingsContext = createContext<ISettingsContext | undefined>(undefined);
-
-export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [settings, setSettings] = useState({
-    dispatchCatAgent: false,
-    dispatchRatAgent: false,
-    movementSpeed: 1,
-  });
-
-  const toggleSetting = (setting: keyof Omit<ISettingsContext, 'movementSpeed'>) => {
-    setSettings((prev) => ({
-      ...prev,
-      [setting]: !(prev as any)[setting],
-    }));
-  };
-
-  const setMovementSpeed = (speed: number) => {
-    setSettings((prev) => ({
-      ...prev,
-      movementSpeed: speed,
-    }));
-  };
-
-  return (
-    <SettingsContext.Provider value={{ ...settings, toggleSetting, setMovementSpeed }}>
-      {children}
-    </SettingsContext.Provider>
-  );
-};
-
-export const useSettings = () => {
-  const context = useContext(SettingsContext);
-  if (!context) {
-    throw new Error('useSettings must be used within a SettingsProvider');
-  }
-  return context;
-};
+import React from 'react';
+import { useSettings } from '../context/SettingsProvider';
 
 const SettingsPanel: React.FC = () => {
   const { dispatchCatAgent, dispatchRatAgent, movementSpeed, toggleSetting, setMovementSpeed } = useSettings();
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-md w-72">
+    <div className="w-full">
       <h2 className="text-lg font-semibold mb-4">Settings</h2>
       <div className="flex items-center justify-between mb-4">
         <label htmlFor="dispatchCatAgent" className="text-gray-700">
-          Dispatch agent Cat
+          Dispatch agent Cat&nbsp;
         </label>
         <div
           className={`relative w-12 h-6 rounded-full cursor-pointer transition-colors ${
@@ -72,7 +26,7 @@ const SettingsPanel: React.FC = () => {
       </div>
       <div className="flex items-center justify-between mb-4">
         <label htmlFor="dispatchRatAgent" className="text-gray-700">
-          Dispatch agent Rat
+          Dispatch agent Rat&nbsp;
         </label>
         <div
           className={`relative w-12 h-6 rounded-full cursor-pointer transition-colors ${

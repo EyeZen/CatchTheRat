@@ -6,7 +6,7 @@ const MoveHistory: React.FC = () => {
   const { moveHistory } = useMoveHistory();
 
   return (
-    <div className="bg-white p-4 rounded-lg shadow-md w-72 h-64 overflow-y-auto">
+    <div className="hidden sm:block bg-white p-4 rounded-lg shadow-md w-72 h-64 overflow-y-auto">
       <h2 className="text-lg font-semibold mb-4">Move History</h2>
       {moveHistory.length === 0 ? (
         <p className="text-gray-500 text-center">No moves yet.</p>
